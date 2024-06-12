@@ -1,11 +1,14 @@
 import datetime
 import os.path
+import re
+import time
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from openai import OpenAI
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -25,19 +28,50 @@ def main():
         with open("token.json", "w") as token:
             token.write(creds.to_json())
 
-    find_upcoming_events(creds=creds, number_of_events=10)
+    # find_upcoming_events(creds=creds, number_of_events=10)
+
+    user_input = input("> ")
+    prompt = (
+        "You need to look at a users input and create google calendar event based on it. You need to fill out the follow fields: summary: Any String treat it like a title, location: Any String, description: Any String, start_date_time: String in this format: 2024-06-11T05:00:00, start_timezone: In formate of country/city if just a country and or city like Singpore just use the country name and nothing else. end_date_time: String in this format: 2024-06-11T10:00:00, end_timezone: same as start_timezone, recurrence: a string in this format RRULE:FREQ=DAILY;COUNT=2 but most of the time for default leave it like RRULE:FREQ=DAILY;COUNT=1, color_id: a number from 1 - 11 one is the color lavendar two is sage three is grape four is flamingo five is banana six is tangerine seven is peacock eight is graphite nine is blueberry ten is basil and eleven is tomato also simpley enter a number and nothing else in this field. The user input is: "
+        + user_input
+        + ". Also some context, we are in Singapore. The current date and time is"
+        + " "
+        + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        + ". Also please dont write anything other than the fields in the user input. Also dont write None instead leave it blank if you want to leave somthing blank"
+    )
+
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}],
+        stream=False,
+    )
+
+    response = response.choices[0].message.content
+    # print(response)
+    response = parse_response(response)
+
+    recurrence = response["recurrence"]
+
+    if response["recurrence"] == "":
+        recurrence = "RRULE:FREQ=DAILY;COUNT=1"
+
+    # print(response)
 
     make_event(
         creds=creds,
-        summary="From Python bla",
-        location="Singapore",
-        description="This is a test event",
-        color_id="6",
-        start_date_time="2024-06-11T05:00:00",
-        start_timezone="Singapore",
-        end_date_time="2024-06-11T10:00:00",
-        end_timezone="Singapore",
-        recurrence="RRULE:FREQ=DAILY;COUNT=2",
+        summary=response["summary"],
+        location=response["location"],
+        description=response["description"],
+        color_id=response["color_id"],
+        start_date_time=response["start_date_time"],
+        start_timezone=response["start_timezone"],
+        end_date_time=response["end_date_time"],
+        end_timezone=response["end_timezone"],
+        recurrence=recurrence,
     )
 
 
@@ -116,6 +150,31 @@ def make_event(
 
     except HttpError as error:
         print(f"An error occurred: {error}")
+
+
+def parse_response(response):
+    fields = [
+        "summary",
+        "location",
+        "description",
+        "start_date_time",
+        "start_timezone",
+        "end_date_time",
+        "end_timezone",
+        "recurrence",
+        "color_id",
+    ]
+    parsed_data = {}
+
+    for field in fields:
+        pattern = re.compile(rf"{field}: (.*)")
+        match = pattern.search(response)
+        if match:
+            parsed_data[field] = match.group(1).strip()
+        else:
+            parsed_data[field] = None
+
+    return parsed_data
 
 
 main()
