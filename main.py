@@ -32,12 +32,12 @@ def main():
 
     user_input = input("> ")
     prompt = (
-        "You need to look at a users input and create google calendar event based on it. You need to fill out the follow fields: summary: Any String treat it like a title, location: Any String, description: Any String, start_date_time: String in this format: 2024-06-11T05:00:00, start_timezone: In formate of country/city if just a country and or city like Singpore just use the country name and nothing else. end_date_time: String in this format: 2024-06-11T10:00:00, end_timezone: same as start_timezone, recurrence: a string in this format RRULE:FREQ=DAILY;COUNT=2 but most of the time for default leave it like RRULE:FREQ=DAILY;COUNT=1, color_id: a number from 1 - 11 one is the color lavendar two is sage three is grape four is flamingo five is banana six is tangerine seven is peacock eight is graphite nine is blueberry ten is basil and eleven is tomato also simpley enter a number and nothing else in this field. The user input is: "
+        "You need to look at a users input and create google calendar event based on it. You need to fill out the follow fields: summary: Any String treat it like a title, location: Any String, description: Any String, start_date_time: String in this format: 2024-06-11T05:00:00, start_timezone: In formate of country/city if just a country and or city like Singpore just use the country name and nothing else. end_date_time: String in this format: 2024-06-11T10:00:00, end_timezone: same as start_timezone, color_id: a number from 1 - 11 one is the color lavendar two is sage three is grape four is flamingo five is banana six is tangerine seven is peacock eight is graphite nine is blueberry ten is basil and eleven is tomato also simpley enter a number and nothing else in this field. The user input is: "
         + user_input
         + ". Also some context, we are in Singapore. The current date and time is"
         + " "
         + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        + ". Also please dont write anything other than the fields in the user input. Also dont write None instead leave it blank if you want to leave somthing blank"
+        + ". Also please dont write anything other than the fields in the user input. Also dont write None instead leave it blank if you want to leave somthing blank. Try to fill out things like description and location if you can."
     )
 
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -54,13 +54,6 @@ def main():
     # print(response)
     response = parse_response(response)
 
-    recurrence = response["recurrence"]
-
-    if response["recurrence"] == "":
-        recurrence = "RRULE:FREQ=DAILY;COUNT=1"
-
-    # print(response)
-
     make_event(
         creds=creds,
         summary=response["summary"],
@@ -71,7 +64,6 @@ def main():
         start_timezone=response["start_timezone"],
         end_date_time=response["end_date_time"],
         end_timezone=response["end_timezone"],
-        recurrence=recurrence,
     )
 
 
@@ -123,7 +115,6 @@ def make_event(
     start_timezone,
     end_date_time,
     end_timezone,
-    recurrence,
 ):
     try:
         service = build("calendar", "v3", credentials=creds)
@@ -141,10 +132,9 @@ def make_event(
                 "dateTime": end_date_time,
                 "timeZone": end_timezone,
             },
-            "recurrence": [recurrence],
             "attendees": [{"email": "goenka.ekansh@gmail.com"}],
         }
-
+        # print(event)
         event = service.events().insert(calendarId="primary", body=event).execute()
         print(f"Event created: {event.get('htmlLink')}")
 
@@ -161,7 +151,6 @@ def parse_response(response):
         "start_timezone",
         "end_date_time",
         "end_timezone",
-        "recurrence",
         "color_id",
     ]
     parsed_data = {}
